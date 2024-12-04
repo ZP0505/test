@@ -17,7 +17,7 @@ from version_updater import UpdateManager
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="1.0.1",
+            local_version="1.0.2",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -48,14 +48,16 @@ class ColoredFormatter(logging.Formatter):
 
 def setup_colored_logging():
     logger = logging.getLogger('GameBot')
+    logger.handlers.clear()
+    logger.propagate = False
     logger.setLevel(logging.INFO)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.INFO)
     colored_formatter = ColoredFormatter()
-    file_formatter = logging.Formatter('%(asctime)s - %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     console_handler.setFormatter(colored_formatter)
     logger.addHandler(console_handler)
     return logger
+
 
 logger = setup_colored_logging()
 
@@ -97,7 +99,7 @@ def Get_FeeGas():
 def monitor_gas():
     while True:
         gas = Get_FeeGas()
-        logger.info(f"当前 gas 值: {gas}")
+        logger.info(f"当前Gas值: {gas}")
         if gas <= 0.33:
             break
         time.sleep(5)
