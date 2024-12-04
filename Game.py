@@ -17,7 +17,7 @@ from version_updater import UpdateManager
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="1.0.2",
+            local_version="1.0.3",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -100,7 +100,7 @@ def monitor_gas():
     while True:
         gas = Get_FeeGas()
         logger.info(f"当前Gas值: {gas}")
-        if gas <= 0.33:
+        if gas <= 0.35:
             break
         time.sleep(5)
 
@@ -170,12 +170,7 @@ def handle_post_double_click():
         image_location_qr = find_and_click_image("qrjy.png")
         if image_location_qr:
             break
-        time.sleep(2)
-    while True:
-        image_location_ok = find_and_click_image("ok.png")
-        if image_location_ok:
-            break
-        time.sleep(2)
+        time.sleep(1)
 
 def main():
     logger.info("游戏机器人启动")
@@ -187,6 +182,7 @@ def main():
     counter = 0
     while True:
         monitor_gas()
+        image_location_ok = find_and_click_image("ok.png")
         if counter % 5 == 0:
             find_and_click_image("dw.png")
             find_and_click_image("dw2.png")
