@@ -17,7 +17,7 @@ from version_updater import UpdateManager
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="1.0.3",
+            local_version="2.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
