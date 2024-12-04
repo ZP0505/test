@@ -10,14 +10,13 @@ import os
 import sys
 from version_updater import VersionUpdater
 
-# 定义本地版本、版本文件和脚本文件的 URL
-local_version = "1.0.1"
-version_url = "https://raw.githubusercontent.com/ZP0505/test/main/version.txt"  # 远程 version.txt 文件 URL
-script_url = "https://raw.githubusercontent.com/ZP0505/test/main/Game.py"  # 远程脚本文件 URL
-
-# 创建一个 VersionUpdater 实例
-updater = VersionUpdater(local_version, version_url, script_url)
-
+update_manager = UpdateManager(
+        local_version="1.0.0",  # 你的当前版本
+        version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",  # 远程版本文件URL
+        script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"  # 远程脚本文件URL
+    )
+# 运行更新
+update_manager.run_update()
 model = YOLO("best.pt")
 
 def get_detections(image):
