@@ -10,13 +10,15 @@ import os
 import sys
 from version_updater import UpdateManager
 
-update_manager = UpdateManager(
-        local_version="1.0.0",  # 你的当前版本
-        version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",  # 远程版本文件URL
-        script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"  # 远程脚本文件URL
-    )
-# 运行更新
-update_manager.run_update()
+def run_update_and_restart():
+    update_manager = UpdateManager(
+            local_version="1.0.1",  # 你的当前版本
+            version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",  # 远程版本文件URL
+            script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"  # 远程脚本文件URL
+        )
+    # 运行更新
+    update_manager.run_update()
+run_update_and_restart()
 model = YOLO("best.pt")
 
 def get_detections(image):
