@@ -8,7 +8,7 @@ from PIL import ImageGrab
 import math
 import os
 import sys
-from version_updater import VersionUpdater
+from version_updater import UpdateManager
 
 update_manager = UpdateManager(
         local_version="1.0.0",  # 你的当前版本
