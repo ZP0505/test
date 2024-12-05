@@ -20,7 +20,7 @@ import win32api
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="3.0",
+            local_version="4.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -186,6 +186,7 @@ def main():
         if counter % 5 == 0:
             background_click_image("dw.png", hwnd)
             background_click_image("dw2.png", hwnd)
+            background_click_image("x.png", hwnd)
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
@@ -197,8 +198,6 @@ def main():
             find_and_double_click(results, img, browser_window, window_x, window_y, hwnd, person_pos)
         else:
             logger.warning("未找到最近的方块")
-            background_click_image("dw.png", hwnd)
-            background_click_image("dw2.png", hwnd)
             handle_post_double_click(hwnd)
         counter += 1
         time.sleep(3)
