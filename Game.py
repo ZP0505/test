@@ -20,7 +20,7 @@ import win32api
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="4.0",
+            local_version="5.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -110,17 +110,20 @@ def logstr_detections(results):
                 closest_block = block
     return person_pos, closest_block
 
-def background_double_click(hwnd, x, y):
+def background_double_click(hwnd, x, y,click_count=3):
     client_x, client_y = win32gui.ScreenToClient(hwnd, (int(x), int(y)))
     lParam = win32api.MAKELONG(client_x, client_y)
-    win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
-    win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
-    time.sleep(0.05)
-    win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
-    time.sleep(0.1)
-    win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
-    time.sleep(0.05)
-    win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+    for _ in range(click_count):  # 循环执行点击操作
+        # 模拟鼠标移动到指定位置
+        win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
+        
+        # 模拟鼠标左键按下
+        win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+        time.sleep(0.05)  # 等待 0.05 秒
+        
+        # 模拟鼠标左键释放
+        win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+        time.sleep(0.1)  # 等待 0.1 秒后进行下一次点击
 
 def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd, person_pos=None):
     person_pos, closest_block = logstr_detections(results)
@@ -140,7 +143,7 @@ def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd
 
 def background_click_image(image_path, hwnd):
     try:
-        location = pyautogui.locateOnScreen(image_path, confidence=0.8)
+        location = pyautogui.locateOnScreen(image_path, confidence=0.7)
         if location:
             center = pyautogui.center(location)
             client_x, client_y = win32gui.ScreenToClient(hwnd, center)
@@ -158,13 +161,16 @@ def background_click_image(image_path, hwnd):
 
 def handle_post_double_click(hwnd):
     background_click_image("confirm.png", hwnd)
-    for i in range(5):
+    for i in range(3):
         hwnd1=get_window_handle(title_pattern="OKX Wallet")
         if hwnd1:
+            win32gui.ShowWindow(hwnd1, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd1)
+            time.sleep(0.1)
             if background_click_image("qrjy.png", hwnd1):
                 break
-        time.sleep(1)
-
+            else:
+                time.sleep(1)
 def main():
     logger.info("游戏机器人启动")
     hwnd = get_window_handle()
@@ -183,10 +189,11 @@ def main():
             time.sleep(5)
             continue
         background_click_image("ok.png", hwnd)
+        background_click_image("x.png", hwnd)
+        background_click_image("x1.png", hwnd)
         if counter % 5 == 0:
             background_click_image("dw.png", hwnd)
             background_click_image("dw2.png", hwnd)
-            background_click_image("x.png", hwnd)
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
@@ -196,6 +203,7 @@ def main():
             logger.info(f"离人物最近的方块ID: {closest_block[2]}, 坐标: {closest_block[0]}, {closest_block[1]}")
         if closest_block:
             find_and_double_click(results, img, browser_window, window_x, window_y, hwnd, person_pos)
+            handle_post_double_click(hwnd)
         else:
             logger.warning("未找到最近的方块")
             handle_post_double_click(hwnd)
