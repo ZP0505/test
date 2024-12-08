@@ -20,7 +20,7 @@ import win32api
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="5.0",
+            local_version="6.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
