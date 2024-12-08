@@ -20,7 +20,7 @@ import win32api
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="6.0",
+            local_version="7.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -266,8 +266,7 @@ def main():
         click_image("ok.png", hwnd)
         background_click_image("x.png", hwnd)
         background_click_image("x1.png", hwnd)
-        if counter % 5 == 0:
-            background_click_image("dw.png", hwnd)
+        background_click_image("dw.png", hwnd)
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
