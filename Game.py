@@ -69,17 +69,32 @@ logger = setup_colored_logging()
 
 model = YOLO("best.pt")
 
-def get_window_handle(title_pattern="Game - Crystal Caves - Google Chrome"):
-    hwnd = win32gui.FindWindow(None, title_pattern)
-    if hwnd:
-        return hwnd
+def get_window_handle(title_pattern="Game - Crystal Caves"):
+    def enum_window_callback(hwnd, lParam):
+        window_title = win32gui.GetWindowText(hwnd)
+        if title_pattern in window_title:
+            lParam.append(hwnd)
 
-def get_browser_window(title="Game - Crystal Caves - Google Chrome"):
-    windows = gw.getWindowsWithTitle(title)
-    if len(windows) > 0:
-        return windows[0]
+    hwnd_list = []
+    win32gui.EnumWindows(enum_window_callback, hwnd_list)
+    
+    # 如果找到符合条件的窗口句柄，返回第一个找到的
+    if hwnd_list:
+        return hwnd_list[0]
+    return None
+
+def get_browser_window(title_pattern="Game - Crystal Caves"):
+    # 获取所有窗口的标题
+    windows = gw.getAllTitles()
+
+    # 遍历所有窗口标题，查找包含title_pattern的窗口
+    matched_windows = [win for win in windows if title_pattern in win]
+
+    if len(matched_windows) > 0:
+        # 返回第一个匹配的窗口
+        return gw.getWindowsWithTitle(matched_windows[0])[0]
     else:
-        logger.warning(f"未找到游戏的窗口")
+        logger.warning(f"未找到匹配的窗口")
         return None
 
 def capture_browser_window(window):
@@ -141,9 +156,63 @@ def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd
         logger.warning("没有找到最近的方块，跳过双击操作")
         return False
 
-def background_click_image(image_path, hwnd):
+def locate_image_multi_scale(image_path, screenshot=None, scales=[0.8, 1.0, 1.2], confidence=0.7):
+    # 如果未提供截图，则截取全屏
+    if screenshot is None:
+        screenshot = np.array(ImageGrab.grab())
+    
+    # 读取目标图像
+    template = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    
+    for scale in scales:
+        # 缩放目标图像
+        resized_template = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+        
+        # 使用模板匹配
+        result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
+        
+        # 找到最佳匹配位置
+        locations = np.where(result >= confidence)
+        
+        if len(locations[0]) > 0:
+            # 取第一个匹配位置
+            top_left = (locations[1][0], locations[0][0])
+            w, h = resized_template.shape[:2]
+            center = (top_left[0] + w // 2, top_left[1] + h // 2)
+            return center
+    
+    return None
+
+def robust_background_click_image(image_path, hwnd, confidence=0.8):
     try:
-        location = pyautogui.locateOnScreen(image_path, confidence=0.7)
+        # 多分辨率匹配
+        center = locate_image_multi_scale(image_path, confidence=confidence)
+        
+        if center:
+            client_x, client_y = win32gui.ScreenToClient(hwnd, center)
+            lParam = win32api.MAKELONG(client_x, client_y)
+            
+            # 移动并点击
+            win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
+            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+            time.sleep(0.05)
+            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+            
+            logger.info(f"成功点击图像: {image_path}")
+            return center
+        
+        logger.warning(f"未找到图像: {image_path}")
+        return None
+    
+    except Exception as e:
+        logger.error(f"出错: {e}")
+        return None
+
+def click_image(image_path, hwnd):
+    try:
+        location = pyautogui.locateOnScreen(image_path, confidence=0.8)
         if location:
             center = pyautogui.center(location)
             client_x, client_y = win32gui.ScreenToClient(hwnd, center)
@@ -159,18 +228,24 @@ def background_click_image(image_path, hwnd):
         logger.warning(f"未找到图像: {image_path}")
         return None
 
+
+# 替换原有的 background_click_image 函数
+background_click_image = robust_background_click_image
+
 def handle_post_double_click(hwnd):
-    background_click_image("confirm.png", hwnd)
+    click_image("confirm.png", hwnd)
     for i in range(3):
         hwnd1=get_window_handle(title_pattern="OKX Wallet")
         if hwnd1:
             win32gui.ShowWindow(hwnd1, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(hwnd1)
             time.sleep(0.1)
-            if background_click_image("qrjy.png", hwnd1):
+            if click_image("qrjy.png", hwnd1):
                 break
             else:
                 time.sleep(1)
+
+
 def main():
     logger.info("游戏机器人启动")
     hwnd = get_window_handle()
@@ -188,12 +263,11 @@ def main():
             logger.error(f"Gas监控出错: {e}")
             time.sleep(5)
             continue
-        background_click_image("ok.png", hwnd)
+        click_image("ok.png", hwnd)
         background_click_image("x.png", hwnd)
         background_click_image("x1.png", hwnd)
         if counter % 5 == 0:
             background_click_image("dw.png", hwnd)
-            background_click_image("dw2.png", hwnd)
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
@@ -235,7 +309,7 @@ def monitor_gas():
     while True:
         gas = Get_FeeGas()
         logger.info(f"当前Gas值: {gas}")
-        if gas <= 0.35:
+        if gas <= 0.3:
             break
         time.sleep(5)
 
