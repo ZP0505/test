@@ -20,7 +20,7 @@ import win32api
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="7.0",
+            local_version="8.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -77,21 +77,15 @@ def get_window_handle(title_pattern="Game - Crystal Caves"):
 
     hwnd_list = []
     win32gui.EnumWindows(enum_window_callback, hwnd_list)
-    
-    # 如果找到符合条件的窗口句柄，返回第一个找到的
     if hwnd_list:
         return hwnd_list[0]
     return None
 
 def get_browser_window(title_pattern="Game - Crystal Caves"):
-    # 获取所有窗口的标题
     windows = gw.getAllTitles()
-
-    # 遍历所有窗口标题，查找包含title_pattern的窗口
     matched_windows = [win for win in windows if title_pattern in win]
 
     if len(matched_windows) > 0:
-        # 返回第一个匹配的窗口
         return gw.getWindowsWithTitle(matched_windows[0])[0]
     else:
         logger.warning(f"未找到匹配的窗口")
@@ -125,21 +119,15 @@ def logstr_detections(results):
                 closest_block = block
     return person_pos, closest_block
 
-def background_double_click(hwnd, x, y,click_count=3):
+def background_double_click(hwnd, x, y, click_count=3):
     client_x, client_y = win32gui.ScreenToClient(hwnd, (int(x), int(y)))
     lParam = win32api.MAKELONG(client_x, client_y)
-    for _ in range(click_count):  # 循环执行点击操作
-        # 模拟鼠标移动到指定位置
-        win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
+    for _ in range(click_count):
+        win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+        time.sleep(0.05)  
+        win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+        time.sleep(0.1) 
         
-        # 模拟鼠标左键按下
-        win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
-        time.sleep(0.05)  # 等待 0.05 秒
-        
-        # 模拟鼠标左键释放
-        win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
-        time.sleep(0.1)  # 等待 0.1 秒后进行下一次点击
-
 def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd, person_pos=None):
     person_pos, closest_block = logstr_detections(results)
     if closest_block is not None:
@@ -157,27 +145,20 @@ def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd
         return False
 
 def locate_image_multi_scale(image_path, screenshot=None, scales=[0.8, 1.0, 1.2], confidence=0.7):
-    # 如果未提供截图，则截取全屏
     if screenshot is None:
         screenshot = np.array(ImageGrab.grab())
-    
-    # 读取目标图像
     template = cv2.imread(image_path, cv2.IMREAD_COLOR)
     screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
     template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
     
     for scale in scales:
-        # 缩放目标图像
         resized_template = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-        
-        # 使用模板匹配
+
         result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
         
-        # 找到最佳匹配位置
         locations = np.where(result >= confidence)
         
         if len(locations[0]) > 0:
-            # 取第一个匹配位置
             top_left = (locations[1][0], locations[0][0])
             w, h = resized_template.shape[:2]
             center = (top_left[0] + w // 2, top_left[1] + h // 2)
@@ -187,19 +168,14 @@ def locate_image_multi_scale(image_path, screenshot=None, scales=[0.8, 1.0, 1.2]
 
 def robust_background_click_image(image_path, hwnd, confidence=0.8):
     try:
-        # 多分辨率匹配
         center = locate_image_multi_scale(image_path, confidence=confidence)
         
         if center:
             client_x, client_y = win32gui.ScreenToClient(hwnd, center)
             lParam = win32api.MAKELONG(client_x, client_y)
-            
-            # 移动并点击
-            win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
-            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, win32api.MAKELONG(client_x, client_y))
             time.sleep(0.05)
-            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
-            
+            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, win32api.MAKELONG(client_x, client_y))    
             logger.info(f"成功点击图像: {image_path}")
             return center
         
@@ -216,11 +192,10 @@ def click_image(image_path, hwnd):
         if location:
             center = pyautogui.center(location)
             client_x, client_y = win32gui.ScreenToClient(hwnd, center)
-            lParam = win32api.MAKELONG(client_x, client_y)
-            win32gui.SendMessage(hwnd, win32con.WM_MOUSEMOVE, 0, lParam)
-            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lParam)
+            lParam = win32api.MAKELONG(client_x, client_y)     
+            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, win32api.MAKELONG(client_x, client_y))
             time.sleep(0.05)
-            win32gui.SendMessage(hwnd, win32con.WM_LBUTTONUP, 0, lParam)
+            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, win32api.MAKELONG(client_x, client_y))    
             return center
         else:
             return None
@@ -239,14 +214,15 @@ def handle_post_double_click(hwnd):
         if hwnd1:
             win32gui.ShowWindow(hwnd1, win32con.SW_RESTORE)
             win32gui.SetForegroundWindow(hwnd1)
-            time.sleep(0.1)
+            time.sleep(1.5)
             if click_image("qrjy.png", hwnd1):
                 break
             else:
-                time.sleep(1)
+                time.sleep(0.3)
 
 
 def main():
+    user_input = input("请输入挖矿的链(b为:Base链，S为:Skale)")
     logger.info("游戏机器人启动")
     hwnd = get_window_handle()
     browser_window = get_browser_window()
@@ -257,16 +233,17 @@ def main():
     person_pos = None
     counter = 0
     while True:
-        try:
-            monitor_gas()
-        except Exception as e:
-            logger.error(f"Gas监控出错: {e}")
-            time.sleep(5)
-            continue
+        if user_input.lower() == 'b':
+            try:
+                monitor_gas()
+            except Exception as e:
+                logger.error(f"Gas监控出错: {e}")
+                time.sleep(5)
+                continue
         click_image("ok.png", hwnd)
         background_click_image("x.png", hwnd)
         background_click_image("x1.png", hwnd)
-        background_click_image("dw.png", hwnd)
+        # background_click_image("dw.png", hwnd)
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
@@ -308,7 +285,7 @@ def monitor_gas():
     while True:
         gas = Get_FeeGas()
         logger.info(f"当前Gas值: {gas}")
-        if gas <= 0.3:
+        if gas <= 0.25:
             break
         time.sleep(5)
 
