@@ -11,16 +11,18 @@ import requests
 import logging
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from colorama import init, Fore, Style
 from version_updater import UpdateManager
 import win32gui
 import win32con
 import win32api
+import random
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="8.0",
+            local_version="9.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -77,19 +79,18 @@ def get_window_handle(title_pattern="Game - Crystal Caves"):
 
     hwnd_list = []
     win32gui.EnumWindows(enum_window_callback, hwnd_list)
-    if hwnd_list:
-        return hwnd_list[0]
-    return None
+    return hwnd_list
 
-def get_browser_window(title_pattern="Game - Crystal Caves"):
-    windows = gw.getAllTitles()
-    matched_windows = [win for win in windows if title_pattern in win]
+def get_browser_windows(title_pattern="Game - Crystal Caves"):
+    windows = gw.getAllWindows()  # 使用 getAllWindows() 替代 getAllTitles()
+    matched_windows = [win for win in windows if title_pattern in win.title]
 
     if len(matched_windows) > 0:
-        return gw.getWindowsWithTitle(matched_windows[0])[0]
+        for win in matched_windows:
+            return matched_windows
     else:
         logger.warning(f"未找到匹配的窗口")
-        return None
+        return []
 
 def capture_browser_window(window):
     x, y, w, h = window.left, window.top, window.right, window.bottom
@@ -144,124 +145,99 @@ def find_and_double_click(results, img, browser_window, window_x, window_y, hwnd
         logger.warning("没有找到最近的方块，跳过双击操作")
         return False
 
-def locate_image_multi_scale(image_path, screenshot=None, scales=[0.8, 1.0, 1.2], confidence=0.7):
-    if screenshot is None:
-        screenshot = np.array(ImageGrab.grab())
-    template = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
-    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    
-    for scale in scales:
-        resized_template = cv2.resize(template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
 
-        result = cv2.matchTemplate(screenshot_gray, resized_template, cv2.TM_CCOEFF_NORMED)
-        
-        locations = np.where(result >= confidence)
-        
-        if len(locations[0]) > 0:
-            top_left = (locations[1][0], locations[0][0])
-            w, h = resized_template.shape[:2]
-            center = (top_left[0] + w // 2, top_left[1] + h // 2)
-            return center
-    
-    return None
 
-def robust_background_click_image(image_path, hwnd, confidence=0.8):
+def click_image(image_path, hwnd, confidence=0.8):
+    """
+    使用 pyautogui 定位和点击图像
+    
+    :param image_path: 要查找的图像路径
+    :param hwnd: 窗口句柄
+    :param confidence: 匹配精度，默认为 0.8
+    :return: 元组 (是否成功点击, 错误信息)
+    """
     try:
-        center = locate_image_multi_scale(image_path, confidence=confidence)
+        # 只查找一次，找出所有匹配位置
+        locations = list(pyautogui.locateAllOnScreen(image_path, confidence=confidence))
         
-        if center:
-            client_x, client_y = win32gui.ScreenToClient(hwnd, center)
-            lParam = win32api.MAKELONG(client_x, client_y)
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, win32api.MAKELONG(client_x, client_y))
-            time.sleep(0.05)
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, win32api.MAKELONG(client_x, client_y))    
-            logger.info(f"成功点击图像: {image_path}")
-            return center
-        
-        logger.warning(f"未找到图像: {image_path}")
-        return None
+        if locations:
+            # 日志记录找到的位置数量
+            # logger.info(f"找到 {len(locations)} 个 {image_path} 匹配位置")
+            
+            # 点击所有找到的位置
+            for location in locations:
+                center = pyautogui.center(location)
+                client_x, client_y = win32gui.ScreenToClient(hwnd, center)
+                
+                # 发送鼠标点击消息
+                win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, 
+                win32api.MAKELONG(client_x, client_y))
+                time.sleep(0.05)
+                win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, 
+                win32api.MAKELONG(client_x, client_y))
+                time.sleep(0.2)  # 添加一个小的延迟防止重复点击           
+            # logger.info(f"成功点击图像: {image_path}")
+            return True, None
+        else:
+            return False, f"未找到图像: {image_path}"
     
     except Exception as e:
-        logger.error(f"出错: {e}")
-        return None
+        return False, f"点击图像时发生错误: {str(e)}"
 
-def click_image(image_path, hwnd):
-    try:
-        location = pyautogui.locateOnScreen(image_path, confidence=0.8)
-        if location:
-            center = pyautogui.center(location)
-            client_x, client_y = win32gui.ScreenToClient(hwnd, center)
-            lParam = win32api.MAKELONG(client_x, client_y)     
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, win32api.MAKELONG(client_x, client_y))
-            time.sleep(0.05)
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, win32api.MAKELONG(client_x, client_y))    
-            return center
-        else:
-            return None
-    except pyautogui.ImageNotFoundException:
-        logger.warning(f"未找到图像: {image_path}")
-        return None
-
-
-# 替换原有的 background_click_image 函数
-background_click_image = robust_background_click_image
 
 def handle_post_double_click(hwnd):
-    click_image("confirm.png", hwnd)
+    click_image("images/confirm.png", hwnd)
     for i in range(3):
         hwnd1=get_window_handle(title_pattern="OKX Wallet")
         if hwnd1:
-            win32gui.ShowWindow(hwnd1, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(hwnd1)
+            win32gui.ShowWindow(hwnd1[0], win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(hwnd1[0])
             time.sleep(1.5)
-            if click_image("qrjy.png", hwnd1):
+            if click_image("images/qrjy.png", hwnd1[0]):
                 break
             else:
                 time.sleep(0.3)
 
-
-def main():
-    user_input = input("请输入挖矿的链(b为:Base链，S为:Skale)")
-    logger.info("游戏机器人启动")
-    hwnd = get_window_handle()
-    browser_window = get_browser_window()
-    if not hwnd or not browser_window:
-        logger.error("无法找到游戏窗口")
-        return
-    logger.info(f"已找到游戏窗口，句柄: {hwnd}")
-    person_pos = None
-    counter = 0
-    while True:
+def process_window(hwnd, browser_window, user_input):
+    """处理单个游戏窗口的逻辑"""
+    logger.info(f"处理窗口，句柄: {hwnd}")
+    
+    try:
+        # 如果 browser_window 是 Win32Window 对象，转换为其句柄
+        window_handle = hwnd if isinstance(hwnd, int) else browser_window._hWnd
+        
         if user_input.lower() == 'b':
             try:
                 monitor_gas()
             except Exception as e:
                 logger.error(f"Gas监控出错: {e}")
-                time.sleep(5)
-                continue
-        click_image("ok.png", hwnd)
-        background_click_image("x.png", hwnd)
-        background_click_image("x1.png", hwnd)
-        # background_click_image("dw.png", hwnd)
+                return
+
+        click_image("images/ok.png", window_handle)
+        click_image("images/x.png", window_handle)
+        click_image("images/x1.png", window_handle)
+        # click_image("images/x2.png", window_handle)
+        time.sleep(0.5)
+        
+        # 使用 browser_window 的坐标信息
         img, window_x, window_y = capture_browser_window(browser_window)
         results = get_detections(img)
         person_pos, closest_block = logstr_detections(results)
+
         if person_pos:
-            logger.info(f"人物坐标: {person_pos}")
+            logger.info(f"窗口人物坐标: {person_pos}")
         if closest_block:
             logger.info(f"离人物最近的方块ID: {closest_block[2]}, 坐标: {closest_block[0]}, {closest_block[1]}")
+
         if closest_block:
-            find_and_double_click(results, img, browser_window, window_x, window_y, hwnd, person_pos)
-            handle_post_double_click(hwnd)
+            find_and_double_click(results, img, browser_window, window_x, window_y, window_handle, person_pos)
+            handle_post_double_click(window_handle)
         else:
             logger.warning("未找到最近的方块")
-            handle_post_double_click(hwnd)
-        counter += 1
-        time.sleep(3)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-        time.sleep(1)
+            handle_post_double_click(window_handle)
+
+    except Exception as e:
+        logger.error(f"处理窗口时发生错误: {e}")
 
 def Get_FeeGas():
     url = "https://base.blockpi.network/v1/rpc/public"
@@ -285,9 +261,47 @@ def monitor_gas():
     while True:
         gas = Get_FeeGas()
         logger.info(f"当前Gas值: {gas}")
-        if gas <= 0.25:
+        if gas <= 0.2:
             break
         time.sleep(5)
+
+def main():
+    user_input = input("请输入挖矿的链(b为:Base链，S为:Skale)")
+    logger.info("游戏机器人启动")
+
+    # 使用线程池来并行处理窗口
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        while True:
+            hwnd_list = get_window_handle()
+            browser_windows = get_browser_windows()
+            if not hwnd_list or not browser_windows:
+                logger.error("无法找到游戏窗口")
+                time.sleep(5)
+                continue
+
+            # 确保窗口数量匹配
+            min_windows = min(len(hwnd_list), len(browser_windows))
+            logger.info(f"找到 {min_windows} 个游戏窗口")
+             # 提交并行任务
+            futures = []
+            for i in range(min_windows):
+                future = executor.submit(
+                    process_window, 
+                    hwnd_list[i], 
+                    browser_windows[i], 
+                    user_input
+                )
+                futures.append(future)
+
+            # 等待所有任务完成
+            for future in futures:
+                future.result()
+
+            time.sleep(3)
+            
+            # 增加退出机制
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
 if __name__ == "__main__":
     main()
