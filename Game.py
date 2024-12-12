@@ -22,7 +22,7 @@ import random
 
 def run_update_and_restart():
     update_manager = UpdateManager(
-            local_version="9.0",
+            local_version="10.0",
             version_url="https://raw.githubusercontent.com/ZP0505/test/main/version.txt",
             script_url="https://raw.githubusercontent.com/ZP0505/test/main/Game.py"
         )
@@ -187,16 +187,25 @@ def click_image(image_path, hwnd, confidence=0.8):
 
 def handle_post_double_click(hwnd):
     click_image("images/confirm.png", hwnd)
-    for i in range(3):
-        hwnd1=get_window_handle(title_pattern="OKX Wallet")
-        if hwnd1:
-            win32gui.ShowWindow(hwnd1[0], win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(hwnd1[0])
-            time.sleep(1.5)
-            if click_image("images/qrjy.png", hwnd1[0]):
-                break
+    
+    # 获取所有OKX Wallet窗口句柄
+    hwnd_list = get_window_handle(title_pattern="OKX Wallet")
+    
+    if hwnd_list:
+        for window_handle in hwnd_list:
+            # 恢复窗口
+            win32gui.ShowWindow(window_handle, win32con.SW_RESTORE)
+            
+            # 将窗口设置为前台
+            win32gui.SetForegroundWindow(window_handle)
+            
+            time.sleep(3)
+            
+            # 尝试点击特定图像
+            if click_image("images/qrjy.png", window_handle):
+                logger.info(f"成功激活并点击窗口: {window_handle}")
             else:
-                time.sleep(0.3)
+                logger.warning(f"无法在窗口 {window_handle} 上点击图像")  
 
 def process_window(hwnd, browser_window, user_input):
     """处理单个游戏窗口的逻辑"""
@@ -216,7 +225,7 @@ def process_window(hwnd, browser_window, user_input):
         click_image("images/ok.png", window_handle)
         click_image("images/x.png", window_handle)
         click_image("images/x1.png", window_handle)
-        # click_image("images/x2.png", window_handle)
+        click_image("images/x2.png", window_handle)
         time.sleep(0.5)
         
         # 使用 browser_window 的坐标信息
@@ -267,6 +276,7 @@ def monitor_gas():
 
 def main():
     user_input = input("请输入挖矿的链(b为:Base链，S为:Skale)")
+    time.sleep(1.5)
     logger.info("游戏机器人启动")
 
     # 使用线程池来并行处理窗口
